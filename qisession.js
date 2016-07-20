@@ -1,4 +1,5 @@
-
+var log = require('humix-logger').createLogger('qiproxy')
+  .child('loc:qisession');
 var host = "http://192.168.1.118/libs/qimessaging/2/socket.io";
 var io = require('socket.io-client');
 var Deferred = require('deferred-js');
@@ -15,8 +16,8 @@ function QiSession(host, resource)
 */
  // var _socket = io.connect(host, { resource: resource });
   var _socket = io.connect("127.0.0.1",
-                           { resource: "libs/qimessaging/1.0/socket.io",
-                             'force new connection': true });
+      { resource: "libs/qimessaging/1.0/socket.io",
+        'force new connection': true });
 
   var _dfd = new Array();
   var _sigs = new Array();
@@ -56,7 +57,7 @@ function QiSession(host, resource)
 
   _socket.on('error', function (data) {
   
-     console.log("socket error, data:"+data);
+    log.error("socket error, data:", data);
 
     if (data["idm"] != undefined) {
       _dfd[data["idm"]].reject(data["result"]);
@@ -84,8 +85,7 @@ function QiSession(host, resource)
       var idm = ++_idm;
       var args = Array.prototype.slice.call(arguments, 0);
       _dfd[idm] = new Deferred();
-      if (method == "registerEvent")
-      {
+      if (method == "registerEvent") {
         _dfd[idm].__cbi = data;
       }
       _socket.emit('call', { idm: idm, params: { obj: obj, method: method, args: args } });
