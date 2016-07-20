@@ -4,8 +4,7 @@ var host = "http://192.168.1.118/libs/qimessaging/2/socket.io";
 var io = require('socket.io-client');
 var Deferred = require('deferred-js');
 
-function QiSession(host, resource)
-{
+function QiSession(host, resource) {
 /*
   if (host == undefined)
     host = window.location.host;
