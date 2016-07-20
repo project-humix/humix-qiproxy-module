@@ -17,20 +17,44 @@
 *******************************************************************************/
 'use strict';
 
-var log = require('humix-logger').createLogger('qiproxy');
+var util = require('util');
+var log = require('humix-logger').createLogger('qiproxy', {consoleLevel: 'debug'});
 var HumixSense = require('node-humix-sense');
 
-var config = {
-  moduleName:"qiproxy",
-  commands : ["ALTextToSpeech.say", "ALBehaviorManager.startBehavior","ALPhotoCapture.takePicture"],
-  events : ["ALTouch.FrontTactilTouched"],
-  debug: true
-};
+var QiSession = require('./qisession.js');
 
 var humix = new HumixSense(config);
 var hsm;
+var config = { 
+    moduleName: 'qiproxy',
+    commands: [],
+    events: ['ALTouch.FrontTactilTouched'],
+    debug: true };
 
-var QiSession = require('./qisession.js');
+//current supported services
+var services = {
+    ALTextToSpeech: './lib/text-to-speech',
+    ALBehaviorManager: './lib/behavior-mgr',
+    ALPhotoCapture: './lib/photo-capture'};
+
+var commands = {};
+var serviceProxies = {};
+
+
+for (var service in services) {
+  var mod = require(services[service]);
+  log.debug('register', service);
+  mod.commands.forEach(function(cmd) {
+    var name = util.format('%s.%s', service, cmd);
+    config.commands.push(name);
+
+    commands[name] = createCommandHandler(mod, cmd);
+  });
+}
+
+log.debug('all supported commands:', config.commands);
+//caching the proxy objects
+
 var session = new QiSession("127.0.0.1");
 session.socket().on('connect', function () {
   log.info('QiSession connected!');
@@ -50,59 +74,90 @@ session.socket().on('connect', function () {
 });
 
 
-
-
 humix.on('connection', function(humixSensorModule){
   hsm = humixSensorModule;
   log.info('Connected to humix-sense.');
 
-  // command registration    
-  hsm.on("ALTextToSpeech.say", ALTextToSpeech_say);
-  hsm.on("ALBehaviorManager.startBehavior", ALBehaviorManager_startBehavior);
-  hsm.on("ALPhotoCapture.takePicture", ALPhotoCapture_takePicture);
+  // command registration
+  for(var command in commands) {
+    hsm.on(command, commands[command]);
+  }
   // event subscription
-  //session.service("ALPhotoCapture").done(function (photo) {
+  //TODO
 });
 
+function createCommandHandler(mod, cmdName) {
+  var service = mod.name;
+  return function () {
+    var _arguments = arguments;
+    if (!session) {
+      log.debug('QiSession is not available, skip command');
+      return;
+    }
 
-function ALTextToSpeech_say(data) { 
-
-  log.debug('say :', data);
-
-  if (session) { 
-    session.service("ALTextToSpeech").done(function (tts) {
-
-      log.debug("got tts service");
-      tts.say(data);
-
-    }).fail(function (error) {
-        log.error("An error occurred:", error);
-    });
-  }
-}
-
-function ALBehaviorManager_startBehavior(data) { 
-  log.debug('startBehavior :', data);
-}
-
-function ALPhotoCapture_takePicture(data) { 
-  log.debug('takePicture :', data);
-    
-  if (session) { 
-    session.service("ALPhotoCapture").done(function (photo) {
-
-      log.debug("got photo service");
-      photo.takePicture("/home/nao/","pic.jpg").done(function (str) {
-        log.debug("file saved to", str);
+    var proxy = serviceProxies[service];
+    if (!proxy) {
+      log.debug('create new proxy for', service);
+      session.service(service).done(function (proxyObj) {
+        log.debug('got proxy for', service);
+        serviceProxies[service] = proxyObj;
+        var rev;
+        switch (_arguments.length) {
+        case 1:
+          rev = mod[cmdName].call(undefined, proxyObj, _arguments[0]);
+          break;
+        case 2:
+          rev = mod[cmdName].call(undefined, proxyObj, _arguments[0],
+            _arguments[1]);
+          break;
+        case 3:
+          rev = mod[cmdName].call(undefined, proxyObj, _arguments[0],
+            _arguments[1], _arguments[2]);
+          break;
+        case 4:
+          rev = mod[cmdName].call(undefined, proxyObj, _arguments[0], 
+            _arguments[1], _arguments[2], _arguments[3]);
+          break;
+        default:
+          var args = Array.prototype.slice.call(_arguments, 0);
+          args.unshift(proxyObj);
+          rev = mod[cmdName].apply(undefined, args);
+          break;
+        }
+        return rev;
       }).fail(function (error) {
-        log.error("An error occurred:", error);
+        log.error('failed to get proxy for',service, error);
+        delete serviceProxies[service];
       });
+      return;
+    }
 
-    }).fail(function (error) {
-      log.error("An error occurred:", error);
-    });
-  }
-
+    log.debug('reuse proxy for', service);
+    var rev;
+    switch (arguments.length) {
+    case 1:
+      rev = mod[cmdName].call(undefined, proxy, arguments[0]);
+      break;
+    case 2:
+      rev = mod[cmdName].call(undefined, proxy, arguments[0],
+        arguments[1]);
+      break;
+    case 3:
+      rev = mod[cmdName].call(undefined, proxy, arguments[0],
+        arguments[1], arguments[2]);
+      break;
+    case 4:
+      rev = mod[cmdName].call(undefined, proxy, arguments[0], 
+        arguments[1], arguments[2], arguments[3]);
+      break;
+    default:
+      var args = Array.prototype.slice.call(arguments, 0);
+      args.unshift(proxy);
+      rev = mod[cmdName].apply(undefined, args);
+      break;
+    }
+    return rev;
+  };
 }
 
 function ALMemory_frontTactilTouched(data) { 
