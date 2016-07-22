@@ -1,5 +1,5 @@
 var log = require('humix-logger').createLogger('qiproxy')
-  .child('loc:qisession');
+  .child({loc: 'qisession'});
 var host = "http://192.168.1.118/libs/qimessaging/2/socket.io";
 var io = require('socket.io-client');
 var Deferred = require('deferred-js');
