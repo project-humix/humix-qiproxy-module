@@ -4,7 +4,8 @@
   "description": "A wrapper of NaoQi API that controls Aldebaran Nao and Pepper robot",
   "main": "index.js",
   "dependencies": {
-    "logule": "^2.1.0",
+    "deferred-js": "^1.0.2",
+    "humix-logger": "^1.0.1",
     "node-humix-sense": "^1.0.0",
     "socket.io-client": "^0.9.11"
   },
