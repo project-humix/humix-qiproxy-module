@@ -23,7 +23,7 @@ var HumixSense = require('node-humix-sense');
 
 var QiSession = require('./qisession.js');
 
-var humix = new HumixSense(config);
+
 var hsm;
 var config = { 
     moduleName: 'qiproxy',
@@ -35,7 +35,8 @@ var config = {
 var services = {
     ALTextToSpeech: './lib/text-to-speech',
     ALBehaviorManager: './lib/behavior-mgr',
-    ALPhotoCapture: './lib/photo-capture'};
+    ALPhotoCapture: './lib/photo-capture',
+    ALTabletService: './lib/tablet'};
 
 var commands = {};
 var serviceProxies = {};
@@ -51,14 +52,16 @@ for (var service in services) {
     commands[name] = createCommandHandler(mod, cmd);
   });
 }
-
+var humix = new HumixSense(config);
 log.debug('all supported commands:', config.commands);
+
 //caching the proxy objects
 
 var session = new QiSession("127.0.0.1");
 session.socket().on('connect', function () {
   log.info('QiSession connected!');
 
+  /*
   session.service("ALMemory").done(function (memory) {
 
     log.debug("got memory service");
@@ -68,10 +71,11 @@ session.socket().on('connect', function () {
   }).fail(function (error) {
     log.error("An error occurred:", error);
   });
-
+*/
 }).on('disconnect', function () {
   log.info('QiSession disconnected!');
 });
+
 
 
 humix.on('connection', function(humixSensorModule){
